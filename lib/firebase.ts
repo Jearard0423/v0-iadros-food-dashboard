@@ -24,7 +24,7 @@ if (typeof window !== "undefined") {
 }
 
 export const actionCodeSettings = {
-  url: "https://iadros-food-services.firebaseapp.com",
+  url: process.env.NEXT_PUBLIC_APP_URL || "https://iadros-food-services.firebaseapp.com",
   handleCodeInApp: false,
 }
 

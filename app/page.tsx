@@ -131,7 +131,7 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState<MenuCategory>("all")
   const [searchQuery, setSearchQuery] = useState("")
   const [cart, setCart] = useState<Array<{ item: FoodItem; quantity: number }>>([])
-  const [user, setUser] = useState<{ email: string; name: string } | null>(null)
+  const [user, setUser] = useState<{ email: string; name: string; photoURL?: string } | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [isSigningOut, setIsSigningOut] = useState(false)
@@ -145,13 +145,20 @@ export default function Home() {
   const { toast } = useToast()
 
   useEffect(() => {
+    if (isSigningOut) {
+      console.log("[v0] Skipping auth state change during sign out")
+      return
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log("[v0] Auth state changed:", firebaseUser?.email || "No user")
       if (firebaseUser && firebaseUser.emailVerified) {
         console.log("[v0] User authenticated and verified:", firebaseUser.email)
+        const providerData = firebaseUser.providerData[0]
         setUser({
           email: firebaseUser.email || "",
-          name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "User",
+          name: firebaseUser.displayName || providerData?.displayName || firebaseUser.email?.split("@")[0] || "User",
+          photoURL: firebaseUser.photoURL || providerData?.photoURL || undefined,
         })
         setUserId(firebaseUser.uid)
 
@@ -180,7 +187,7 @@ export default function Home() {
     }
 
     return () => unsubscribe()
-  }, [])
+  }, [isSigningOut])
 
   useEffect(() => {
     if (userId && cart.length >= 0) {
@@ -313,26 +320,26 @@ export default function Home() {
     setIsSigningOut(true)
     try {
       console.log("[v0] Starting sign out process")
+      setUser(null)
+      setUserId(null)
+      setCart([])
       if (userId) {
         try {
           await clearCartFromFirestore(userId)
           console.log("[v0] Cart cleared from Firestore")
         } catch (cartError) {
           console.log("[v0] Cart clear failed (non-critical):", cartError)
-          // Continue with sign out even if cart clear fails
         }
       }
       await signOut(auth)
       console.log("[v0] Firebase sign out successful")
-      setUser(null)
-      setUserId(null)
-      setCart([])
       toast({
         title: "Signed out",
         description: "You have been signed out successfully.",
       })
-      console.log("[v0] Refreshing page after sign out")
-      window.location.reload()
+      setTimeout(() => {
+        window.location.href = window.location.pathname
+      }, 300)
     } catch (error: any) {
       console.error("[v0] Sign out error:", error)
       toast({

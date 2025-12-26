@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { User, Mail, Calendar, ShieldCheck, LogOut, RefreshCw, X } from "lucide-react"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { auth } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
 import { SignOutConfirmationDialog } from "@/components/sign-out-confirmation-dialog"
@@ -11,7 +12,7 @@ import { SignOutConfirmationDialog } from "@/components/sign-out-confirmation-di
 interface UserProfileDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  user: { email: string; name: string } | null
+  user: { email: string; name: string; photoURL?: string } | null
   onSignOut: () => Promise<void>
 }
 
@@ -20,12 +21,17 @@ export function UserProfileDialog({ open, onOpenChange, user, onSignOut }: UserP
   const [isSigningOut, setIsSigningOut] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
   const [emailVerified, setEmailVerified] = useState(false)
+  const [provider, setProvider] = useState<string>("password")
   const { toast } = useToast()
   const firebaseUser = auth.currentUser
 
   useEffect(() => {
     if (open && firebaseUser) {
       setEmailVerified(firebaseUser.emailVerified)
+      const providerData = firebaseUser.providerData[0]
+      if (providerData) {
+        setProvider(providerData.providerId)
+      }
     }
   }, [open, firebaseUser])
 
@@ -84,6 +90,19 @@ export function UserProfileDialog({ open, onOpenChange, user, onSignOut }: UserP
     }
   }
 
+  const getProviderName = (providerId: string) => {
+    switch (providerId) {
+      case "google.com":
+        return "Google"
+      case "facebook.com":
+        return "Facebook"
+      case "password":
+        return "Email"
+      default:
+        return "Unknown"
+    }
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -102,9 +121,22 @@ export function UserProfileDialog({ open, onOpenChange, user, onSignOut }: UserP
 
           <div className="space-y-6 py-4">
             <div className="flex justify-center">
-              <div className="rounded-full bg-primary/10 p-6">
-                <User className="h-16 w-16 text-primary" />
-              </div>
+              {user?.photoURL ? (
+                <Avatar className="h-24 w-24">
+                  <AvatarImage src={user.photoURL || "/placeholder.svg"} alt={user.name} />
+                  <AvatarFallback className="text-2xl">
+                    {user.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <div className="rounded-full bg-primary/10 p-6">
+                  <User className="h-16 w-16 text-primary" />
+                </div>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -124,6 +156,14 @@ export function UserProfileDialog({ open, onOpenChange, user, onSignOut }: UserP
                 </div>
               </div>
 
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
+                <ShieldCheck className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground mb-1">Sign-in Method</p>
+                  <p className="font-medium">{getProviderName(provider)}</p>
+                </div>
+              </div>
+
               {firebaseUser?.metadata?.creationTime && (
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
                   <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
@@ -140,43 +180,45 @@ export function UserProfileDialog({ open, onOpenChange, user, onSignOut }: UserP
                 </div>
               )}
 
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
-                <ShieldCheck className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-xs text-muted-foreground">Account Status</p>
+              {provider === "password" && (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/50">
+                  <ShieldCheck className="h-5 w-5 text-muted-foreground mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-muted-foreground">Account Status</p>
+                      {!emailVerified && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-1"
+                          onClick={handleRefreshStatus}
+                          disabled={isRefreshing}
+                        >
+                          <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`} />
+                        </Button>
+                      )}
+                    </div>
+                    <p className="font-medium flex items-center gap-2">
+                      {emailVerified ? (
+                        <>
+                          <span className="text-green-600">Verified</span>
+                          <span className="h-2 w-2 rounded-full bg-green-600" />
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-amber-600">Pending Verification</span>
+                          <span className="h-2 w-2 rounded-full bg-amber-600" />
+                        </>
+                      )}
+                    </p>
                     {!emailVerified && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-auto p-1"
-                        onClick={handleRefreshStatus}
-                        disabled={isRefreshing}
-                      >
-                        <RefreshCw className={`h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`} />
-                      </Button>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Click the refresh icon after verifying your email
+                      </p>
                     )}
                   </div>
-                  <p className="font-medium flex items-center gap-2">
-                    {emailVerified ? (
-                      <>
-                        <span className="text-green-600">Verified</span>
-                        <span className="h-2 w-2 rounded-full bg-green-600" />
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-amber-600">Pending Verification</span>
-                        <span className="h-2 w-2 rounded-full bg-amber-600" />
-                      </>
-                    )}
-                  </p>
-                  {!emailVerified && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Click the refresh icon after verifying your email
-                    </p>
-                  )}
                 </div>
-              </div>
+              )}
             </div>
 
             <Button
